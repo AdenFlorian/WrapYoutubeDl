@@ -5,6 +5,7 @@ using System.Diagnostics;
 using System.Linq;
 using System.Text;
 using System.Text.RegularExpressions;
+using System.Threading;
 using System.Threading.Tasks;
 
 namespace WrapYoutubeDl
@@ -34,6 +35,8 @@ namespace WrapYoutubeDl
 
         public string ConsoleLog { get; set; }
 
+        public string finishedOutputFilePath { get; private set; }
+
 
         public AudioDownloader(string url, string outputName, string outputfolder)
         {
@@ -59,25 +62,30 @@ namespace WrapYoutubeDl
             }
 
             // if the destination file exists, exit
-            var destinationPath = System.IO.Path.Combine(outputfolder, OutputName);
-            if (System.IO.File.Exists(destinationPath))
-            {
-                throw new Exception(destinationPath + " exists");
-            }
-            var arguments = string.Format(@"--continue  --no-overwrites --restrict-filenames --extract-audio --audio-format mp3 {0} -o ""{1}""", url, destinationPath);  //--ignore-errors
+            //var destinationPath = System.IO.Path.Combine(outputfolder, OutputName);
+            //if (System.IO.File.Exists(destinationPath))
+            //{
+            //    throw new Exception(destinationPath + " exists");
+            //}
+            var arguments = string.Format(@"--max-filesize 50m --extract-audio {0} -o {1}%(title)s.%(ext)s", url, outputfolder);  //--ignore-errors
+
+            var fullPathToEXE = System.IO.Path.Combine(binaryPath, "youtube-dl.exe"); ;
 
             // setup the process that will fire youtube-dl
             Process = new Process();
             Process.StartInfo.UseShellExecute = false;
             Process.StartInfo.RedirectStandardOutput = true;
-            Process.StartInfo.WindowStyle = ProcessWindowStyle.Hidden;
-            Process.StartInfo.FileName = System.IO.Path.Combine(binaryPath, "youtube-dl.exe");
+            Process.StartInfo.RedirectStandardError = true;
+            Process.StartInfo.WindowStyle = ProcessWindowStyle.Normal;
+            Process.StartInfo.WorkingDirectory = System.IO.Path.GetDirectoryName(fullPathToEXE);
+            Process.StartInfo.FileName = System.IO.Path.GetFileName(fullPathToEXE);
             Process.StartInfo.Arguments = arguments;
-            Process.StartInfo.CreateNoWindow = true;
+            Process.StartInfo.CreateNoWindow = false;
             Process.EnableRaisingEvents = true;
 
             Process.OutputDataReceived += new DataReceivedEventHandler(OutputHandler);
             Process.ErrorDataReceived += new DataReceivedEventHandler(ErrorDataReceived);
+
 
         }
 
@@ -103,43 +111,61 @@ namespace WrapYoutubeDl
             StartedDownload?.Invoke(this, e);
         }
 
-        protected virtual void OnDownloadError(ProgressEventArgs e)
-        {
+        protected virtual void OnDownloadError(ProgressEventArgs e) {
             ErrorDownload?.Invoke(this, e);
         }
 
-        public void Download()
+        public string Download()
         {
+
+
+
             Console.WriteLine("Downloading {0}", Url);
             Process.Exited += Process_Exited;
             Process.Start();
             Process.BeginOutputReadLine();
-            this.OnDownloadStarted(new DownloadEventArgs() { ProcessObject = this.ProcessObject });
-            while (this.Finished == false)
-            {
-                System.Threading.Thread.Sleep(100);                   // wait while process exits;
-            }
+            Process.BeginErrorReadLine();
+            Console.Write("Waiting for Process to exit...");
+            // Wait for the child app to stop
+            Process.WaitForExit();
+            Console.WriteLine("Exited!");
+
+            return finishedOutputFilePath;
         }
 
-        void Process_Exited(object sender, EventArgs e)
-        {
+        void Process_Exited(object sender, EventArgs e) {
+            Console.WriteLine("youtube-dl Exited");
             OnDownloadFinished(new DownloadEventArgs() { ProcessObject = this.ProcessObject });
         }
 
-        public void ErrorDataReceived(object sendingprocess, DataReceivedEventArgs error)
-        {
+        public void ErrorDataReceived(object sendingprocess, DataReceivedEventArgs error) {
+            Console.WriteLine(error.Data);
             if (!String.IsNullOrEmpty(error.Data))
             {
                 this.OnDownloadError(new ProgressEventArgs() { Error = error.Data, ProcessObject = this.ProcessObject });
             }
         }
-        public void OutputHandler(object sendingProcess, DataReceivedEventArgs outLine)
-        {
+        public void OutputHandler(object sendingProcess, DataReceivedEventArgs outLine) {
+
             // extract the percentage from process output
-            if (String.IsNullOrEmpty(outLine.Data) || Finished)
-            {
+            if (String.IsNullOrEmpty(outLine.Data)) {
                 return;
             }
+            Console.WriteLine(outLine.Data);
+
+            var ffmpegDestinationString = "[ffmpeg] Destination: ";
+            var ffmpegCorrectingContainerString = "[ffmpeg] Correcting container in \"";
+            if (outLine.Data.StartsWith(ffmpegDestinationString)) {
+                finishedOutputFilePath = outLine.Data.Substring(ffmpegDestinationString.Length);
+            } else if (outLine.Data.StartsWith(ffmpegCorrectingContainerString)) {
+                finishedOutputFilePath = outLine.Data.Substring(ffmpegCorrectingContainerString.Length).TrimEnd('"');
+            }
+
+            // extract the percentage from process output
+            if (Finished) {
+                return;
+            }
+
             this.ConsoleLog += outLine.Data;
 
             if (outLine.Data.Contains("ERROR"))
