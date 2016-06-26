@@ -67,7 +67,7 @@ namespace WrapYoutubeDl
             //{
             //    throw new Exception(destinationPath + " exists");
             //}
-            var arguments = string.Format(@"--max-filesize 50m --extract-audio {0} -o {1}%(title)s.%(ext)s", url, outputfolder);  //--ignore-errors
+            var arguments = string.Format(@"--max-filesize 50m --extract-audio {0} -o {1}" + Guid.NewGuid().ToString() + ".%(ext)s", url, outputfolder);  //--ignore-errors
 
             var fullPathToEXE = System.IO.Path.Combine(binaryPath, "youtube-dl.exe"); ;
 
