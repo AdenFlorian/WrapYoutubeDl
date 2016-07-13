@@ -1,15 +1,9 @@
 ﻿using System;
-using System.Collections.Generic;
 using System.Configuration;
 using System.Diagnostics;
-using System.Linq;
-using System.Text;
 using System.Text.RegularExpressions;
-using System.Threading;
-using System.Threading.Tasks;
 
-namespace WrapYoutubeDl
-{
+namespace WrapYoutubeDl {
     public class AudioDownloader
     {
         public delegate void ProgressEventHandler(object sender, ProgressEventArgs e);
@@ -24,7 +18,7 @@ namespace WrapYoutubeDl
         public delegate void ErrorEventHandler(object sender, ProgressEventArgs e);
         public event ErrorEventHandler ErrorDownload;
 
-        public Object ProcessObject { get; set; }
+        public object ProcessObject { get; set; }
         public bool Started { get; set; }
         public bool Finished { get; set; }
         public decimal Percentage { get; set; }
@@ -35,7 +29,7 @@ namespace WrapYoutubeDl
 
         public string ConsoleLog { get; set; }
 
-        public string finishedOutputFilePath { get; private set; }
+        public string FinishedOutputFilePath { get; private set; }
 
 
         public AudioDownloader(string url, string outputName, string outputfolder)
@@ -133,7 +127,7 @@ namespace WrapYoutubeDl
             Process.WaitForExit();
             Console.WriteLine("Exited!");
 
-            return finishedOutputFilePath;
+            return FinishedOutputFilePath;
         }
 
         void Process_Exited(object sender, EventArgs e) {
@@ -159,9 +153,9 @@ namespace WrapYoutubeDl
             var ffmpegDestinationString = "[ffmpeg] Destination: ";
             var ffmpegCorrectingContainerString = "[ffmpeg] Correcting container in \"";
             if (outLine.Data.StartsWith(ffmpegDestinationString)) {
-                finishedOutputFilePath = outLine.Data.Substring(ffmpegDestinationString.Length);
+                FinishedOutputFilePath = outLine.Data.Substring(ffmpegDestinationString.Length);
             } else if (outLine.Data.StartsWith(ffmpegCorrectingContainerString)) {
-                finishedOutputFilePath = outLine.Data.Substring(ffmpegCorrectingContainerString.Length).TrimEnd('"');
+                FinishedOutputFilePath = outLine.Data.Substring(ffmpegCorrectingContainerString.Length).TrimEnd('"');
             }
 
             // extract the percentage from process output

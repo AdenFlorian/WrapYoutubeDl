@@ -1,15 +1,11 @@
 ﻿using System;
-using System.Collections.Generic;
 using System.Configuration;
 using System.Diagnostics;
-using System.Linq;
-using System.Text;
-using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 
 namespace WrapYoutubeDl {
     public class YoutubeVideoName {
-        public Object ProcessObject { get; set; }
+        public object ProcessObject { get; set; }
         public bool Started { get; set; }
         public bool Finished { get; set; }
         public decimal Percentage { get; set; }
@@ -31,7 +27,7 @@ namespace WrapYoutubeDl {
                 throw new Exception("Cannot read 'binaryfolder' variable from app.config / web.config.");
             }
 
-            var arguments = string.Format("--get-title \"ytsearch1:{0}\"", searchString);  //--ignore-errors
+            var arguments = string.Format($"--get-title {searchString}");  //--ignore-errors
 
             var fullPathToEXE = System.IO.Path.Combine(binaryPath, "youtube-dl.exe"); ;
 

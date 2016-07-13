@@ -1,10 +1,6 @@
 ﻿using System;
-using System.Collections.Generic;
 using System.Configuration;
 using System.Diagnostics;
-using System.Linq;
-using System.Text;
-using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 
 namespace WrapYoutubeDl {
@@ -31,7 +27,7 @@ namespace WrapYoutubeDl {
                 throw new Exception("Cannot read 'binaryfolder' variable from app.config / web.config.");
             }
 
-            var arguments = string.Format("--get-id \"ytsearch1:{0}\"", searchString);  //--ignore-errors
+            var arguments = string.Format($"--get-id {searchString}");  //--ignore-errors
 
             var fullPathToEXE = System.IO.Path.Combine(binaryPath, "youtube-dl.exe"); ;
 
