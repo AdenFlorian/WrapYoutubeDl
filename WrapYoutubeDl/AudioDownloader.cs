@@ -1,7 +1,9 @@
 ﻿using System;
 using System.Configuration;
 using System.Diagnostics;
+using System.IO;
 using System.Text.RegularExpressions;
+using static System.IO.Path;
 
 namespace WrapYoutubeDl {
     public class AudioDownloader
@@ -29,14 +31,14 @@ namespace WrapYoutubeDl {
 
         public string ConsoleLog { get; set; }
 
-        public string FinishedOutputFilePath { get; private set; }
+        public FileInfo FinishedOutputFilePath { get; private set; }
 
 
         public AudioDownloader(string url, string outputName, string outputfolder)
         {
-            this.Started = false;
-            this.Finished = false;
-            this.Percentage = 0;
+            Started = false;
+            Finished = false;
+            Percentage = 0;
 
             DestinationFolder = outputfolder;
             Url = url;
@@ -61,43 +63,39 @@ namespace WrapYoutubeDl {
             //{
             //    throw new Exception(destinationPath + " exists");
             //}
-            var arguments = string.Format(@"--max-filesize 50m --extract-audio {0} -o {1}%(id)s.%(ext)s", url, outputfolder);  //--ignore-errors
+            var arguments = $@"--max-filesize 50m --extract-audio {url} -o {outputfolder}%(id)s.%(ext)s";  //--ignore-errors
 
-            var fullPathToEXE = System.IO.Path.Combine(binaryPath, "youtube-dl.exe"); ;
+            var fullPathToEXE = Combine(binaryPath, "youtube-dl.exe");
 
             // setup the process that will fire youtube-dl
-            Process = new Process();
-            Process.StartInfo.UseShellExecute = false;
-            Process.StartInfo.RedirectStandardOutput = true;
-            Process.StartInfo.RedirectStandardError = true;
-            Process.StartInfo.WindowStyle = ProcessWindowStyle.Normal;
-            Process.StartInfo.WorkingDirectory = System.IO.Path.GetDirectoryName(fullPathToEXE);
-            Process.StartInfo.FileName = System.IO.Path.GetFileName(fullPathToEXE);
-            Process.StartInfo.Arguments = arguments;
-            Process.StartInfo.CreateNoWindow = false;
-            Process.EnableRaisingEvents = true;
+            Process = new Process {
+                StartInfo = {
+                    UseShellExecute = false,
+                    RedirectStandardOutput = true,
+                    RedirectStandardError = true,
+                    WindowStyle = ProcessWindowStyle.Normal,
+                    WorkingDirectory = GetDirectoryName(fullPathToEXE),
+                    FileName = GetFileName(fullPathToEXE),
+                    Arguments = arguments,
+                    CreateNoWindow = false
+                },
+                EnableRaisingEvents = true
+            };
 
             Process.OutputDataReceived += new DataReceivedEventHandler(OutputHandler);
             Process.ErrorDataReceived += new DataReceivedEventHandler(ErrorDataReceived);
-
-
         }
 
         protected virtual void OnProgress(ProgressEventArgs e)
         {
-            if (ProgressDownload != null)
-            {
-                ProgressDownload(this, e);               
-            }
+            ProgressDownload?.Invoke(this, e);
         }
 
         protected virtual void OnDownloadFinished(DownloadEventArgs e)
         {
-            if (Finished == false)
-            {
-                Finished = true;
-                FinishedDownload?.Invoke(this, e);
-            }
+            if (Finished) return;
+            Finished = true;
+            FinishedDownload?.Invoke(this, e);
         }
 
         protected virtual void OnDownloadStarted(DownloadEventArgs e)
@@ -105,16 +103,14 @@ namespace WrapYoutubeDl {
             StartedDownload?.Invoke(this, e);
         }
 
-        protected virtual void OnDownloadError(ProgressEventArgs e) {
+        protected virtual void OnDownloadError(ProgressEventArgs e)
+            {
             ErrorDownload?.Invoke(this, e);
         }
 
-        public string Download()
+        public FileInfo Download()
         {
-
-
-
-            Console.WriteLine("Downloading {0}", Url);
+            Console.WriteLine($"Downloading {Url}");
             Process.Exited += Process_Exited;
 
             Console.WriteLine("\n" + Process.StartInfo.FileName + " " + Process.StartInfo.Arguments + "\n");
@@ -130,32 +126,36 @@ namespace WrapYoutubeDl {
             return FinishedOutputFilePath;
         }
 
-        void Process_Exited(object sender, EventArgs e) {
+        void Process_Exited(object sender, EventArgs e)
+        {
             Console.WriteLine("youtube-dl Exited");
             OnDownloadFinished(new DownloadEventArgs() { ProcessObject = this.ProcessObject });
         }
 
-        public void ErrorDataReceived(object sendingprocess, DataReceivedEventArgs error) {
+        public void ErrorDataReceived(object sendingprocess, DataReceivedEventArgs error)
+        {
             Console.WriteLine(error.Data);
-            if (!String.IsNullOrEmpty(error.Data))
+            if (!string.IsNullOrEmpty(error.Data))
             {
-                this.OnDownloadError(new ProgressEventArgs() { Error = error.Data, ProcessObject = this.ProcessObject });
+                OnDownloadError(new ProgressEventArgs() { Error = error.Data, ProcessObject = this.ProcessObject });
             }
         }
-        public void OutputHandler(object sendingProcess, DataReceivedEventArgs outLine) {
+        public void OutputHandler(object sendingProcess, DataReceivedEventArgs outLine)
+        {
 
             // extract the percentage from process output
-            if (String.IsNullOrEmpty(outLine.Data)) {
+            if (string.IsNullOrEmpty(outLine.Data)) {
                 return;
             }
             Console.WriteLine(outLine.Data);
 
-            var ffmpegDestinationString = "[ffmpeg] Destination: ";
-            var ffmpegCorrectingContainerString = "[ffmpeg] Correcting container in \"";
+            const string ffmpegDestinationString = "[ffmpeg] Destination: ";
+            const string ffmpegCorrectingContainerString = "[ffmpeg] Correcting container in \"";
+            
             if (outLine.Data.StartsWith(ffmpegDestinationString)) {
-                FinishedOutputFilePath = outLine.Data.Substring(ffmpegDestinationString.Length);
+                FinishedOutputFilePath = new FileInfo(outLine.Data.Substring(ffmpegDestinationString.Length));
             } else if (outLine.Data.StartsWith(ffmpegCorrectingContainerString)) {
-                FinishedOutputFilePath = outLine.Data.Substring(ffmpegCorrectingContainerString.Length).TrimEnd('"');
+                FinishedOutputFilePath = new FileInfo(outLine.Data.Substring(ffmpegCorrectingContainerString.Length).TrimEnd('"'));
             }
 
             // extract the percentage from process output
@@ -163,11 +163,11 @@ namespace WrapYoutubeDl {
                 return;
             }
 
-            this.ConsoleLog += outLine.Data;
+            ConsoleLog += outLine.Data;
 
             if (outLine.Data.Contains("ERROR"))
             {
-                this.OnDownloadError(new ProgressEventArgs() { Error = outLine.Data, ProcessObject = this.ProcessObject });
+                OnDownloadError(new ProgressEventArgs() { Error = outLine.Data, ProcessObject = this.ProcessObject });
                 return;
             }
 
@@ -185,11 +185,11 @@ namespace WrapYoutubeDl {
             var perc = Convert.ToDecimal(Regex.Match(outLine.Data, @"\b\d+([\.,]\d+)?").Value);
             if (perc > 100 || perc < 0)
             {
-                Console.WriteLine("weird perc {0}", perc);
+                Console.WriteLine($"weird perc {perc}");
                 return;
             }
-            this.Percentage = perc;
-            this.OnProgress(new ProgressEventArgs() { ProcessObject = this.ProcessObject, Percentage = perc });
+            Percentage = perc;
+            OnProgress(new ProgressEventArgs() { ProcessObject = this.ProcessObject, Percentage = perc });
 
             // is it finished?
             if (perc < 100)
