@@ -63,7 +63,7 @@ namespace WrapYoutubeDl {
             //{
             //    throw new Exception(destinationPath + " exists");
             //}
-            var arguments = $@"--max-filesize 50m --extract-audio {url} -o {outputfolder}%(id)s.%(ext)s";  //--ignore-errors
+            var arguments = $@"--max-filesize 100m --extract-audio {url} -o {outputfolder}%(id)s.%(ext)s";  //--ignore-errors
 
             var fullPathToEXE = Combine(binaryPath, "youtube-dl.exe");
 
@@ -107,7 +107,12 @@ namespace WrapYoutubeDl {
             {
             ErrorDownload?.Invoke(this, e);
         }
-
+        
+        /// <exception cref="YoutubeException">
+        /// Thrown if we were unable to capture an output file from the stdout of youtube-dl.
+        /// This could happen for many reasons.
+        /// (Examples: video removed from youtube, taken down because of copyright, too big)
+        /// </exception>
         public FileInfo Download()
         {
             Console.WriteLine($"Downloading {Url}");
@@ -122,6 +127,10 @@ namespace WrapYoutubeDl {
             // Wait for the child app to stop
             Process.WaitForExit();
             Console.WriteLine("Exited!");
+
+            if (FinishedOutputFilePath.Exists == false) {
+                throw new YoutubeException("There was not output file captured from the stdout of youtube-dl");
+            }
 
             return FinishedOutputFilePath;
         }
